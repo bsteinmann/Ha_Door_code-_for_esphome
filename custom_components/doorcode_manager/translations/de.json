@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Door Code Manager",
+        "description": "Wähle den Sensor deines Keypads (ESPHome Text-Sensor) und den Türöffner. Die Codes verwaltest du anschließend im Seitenmenü unter „Türcodes“.",
+        "data": {
+          "keypad_entity": "Keypad-Sensor",
+          "trigger_entity": "Auslöser „Code empfangen“ (optional, Binärsensor)",
+          "door_opener_entity": "Türöffner (Schalter, Button oder Schloss)",
+          "notification_target": "Benachrichtigungsdienst, z. B. notify.mobile_app_iphone (optional)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Door Code Manager ist bereits eingerichtet.",
+      "single_instance_allowed": "Door Code Manager ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen",
+        "data": {
+          "auto_lock_delay": "Impulsdauer des Türöffners (Sekunden)",
+          "failed_attempts_threshold": "Fehlversuche bis zur Sperre",
+          "lockout_duration": "Sperrdauer (Sekunden)",
+          "tag_devices": "Nur Tags dieser Leser akzeptieren (leer = alle)",
+          "default_notify_targets": "Standard-Empfänger für Benachrichtigungen (Geräte mit Companion-App)"
+        }
+      }
+    }
+  }
+}
