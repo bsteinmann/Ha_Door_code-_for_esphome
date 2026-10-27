@@ -1,0 +1,51 @@
+add_code:
+  fields:
+    name:
+      required: true
+      example: "Reinigungskraft"
+      selector: {text: {}}
+    code:
+      required: false
+      example: "482913"
+      selector: {text: {}}
+    tags:
+      required: false
+      example: '04-A2-B3-C4'
+      selector: {text: {multiple: true}}
+    open_door:
+      default: true
+      selector: {boolean: {}}
+    actions:
+      required: false
+      selector:
+        entity:
+          multiple: true
+          domain: [script, scene, automation, button, input_button, switch, light, input_boolean, lock, cover]
+    enabled:
+      default: true
+      selector: {boolean: {}}
+    one_time:
+      default: false
+      selector: {boolean: {}}
+    notify:
+      default: true
+      selector: {boolean: {}}
+    valid_from:
+      selector: {datetime: {}}
+    expires_at:
+      selector: {datetime: {}}
+delete_code:
+  fields:
+    code_id:
+      required: true
+      selector: {text: {}}
+enable_code:
+  fields:
+    code_id:
+      required: true
+      selector: {text: {}}
+disable_code:
+  fields:
+    code_id:
+      required: true
+      selector: {text: {}}
