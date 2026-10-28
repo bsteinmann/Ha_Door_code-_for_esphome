@@ -1,4 +1,4 @@
-# Door Code Manager 2.0
+# Door Code Manager 2.2.0 – NFC
 
 Türcodes für ESPHome-Keypad + Shelly-Türöffner, verwaltet über ein Seitenmenü-Panel **„Türcodes“** (nur Administratoren).
 
