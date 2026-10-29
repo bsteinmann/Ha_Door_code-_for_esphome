@@ -13,6 +13,7 @@ from .const import DOMAIN, SIGNAL_UPDATE
 _DATE = vol.Any(None, str)
 _FIELDS = {
     vol.Optional("name"): vol.All(str, vol.Length(min=1, max=40)),
+    vol.Optional("kind"): vol.In(["person", "action"]),
     vol.Optional("code"): vol.Any(None, str),
     vol.Optional("tags"): [str],
     vol.Optional("open_door"): bool,

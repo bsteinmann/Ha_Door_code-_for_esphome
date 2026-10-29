@@ -1,5 +1,5 @@
 /* Door Code Manager – sidebar panel. No build step; uses HA theme variables. */
-const STATUS = { armed: "Bereit", code_accepted: "Tür geöffnet", code_rejected: "Zugang abgelehnt", locked_out: "Gesperrt" };
+const STATUS = { armed: "Bereit", code_accepted: "Akzeptiert", code_rejected: "Zugang abgelehnt", locked_out: "Gesperrt" };
 const STATE = { active: "Aktiv", disabled: "Deaktiviert", used: "Verbraucht", expired: "Abgelaufen", scheduled: "Geplant" };
 const RESULT = { granted: "Tür geöffnet", denied: "Abgelehnt", lockout: "Versuch während Sperre" };
 const METHOD = { pin: "PIN", nfc: "NFC" };
@@ -73,6 +73,9 @@ input[type=text],input[type=datetime-local]{font:inherit;padding:9px 10px;border
 .derr{color:var(--error-color);font-size:14px;min-height:1em}
 .btns{display:flex;justify-content:flex-end;gap:8px}
 .btns .primary{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}
+.views{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--divider-color)}
+.views button{border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;padding:10px 16px;font-size:15px}
+.views button.on{border-bottom-color:var(--primary-color);color:var(--primary-color);font-weight:500}
 @media(max-width:520px){.hist .row{grid-template-columns:1fr auto}.hist .row span:first-child{grid-column:1/-1}.two{grid-template-columns:1fr}}
 `;
 
@@ -84,6 +87,7 @@ const HTML = `
   <button id="once">Einmalcode</button><button id="new" class="primary">Neue Person</button>
 </div>
 <div class="wrap">
+  <div class="views"><button type="button" data-view="person" class="on">Personen</button><button type="button" data-view="action">Aktionen</button></div>
   <div id="err" class="err" hidden></div>
   <div id="list" class="grid"></div>
   <h2>Verlauf</h2><div id="history" class="hist"></div>
@@ -98,7 +102,7 @@ const HTML = `
     </div>
 
     <div class="pane" data-pane="t1">
-      <label class="f">Name<input type="text" name="fname" maxlength="40" required placeholder="z. B. Max oder Reinigungskraft"></label>
+      <label class="f"><span id="namelbl">Name</span><input type="text" name="fname" maxlength="40" required placeholder="z. B. Max oder Reinigungskraft"></label>
       <label class="f">PIN-Code (optional, 4–12 Ziffern)
         <span class="crow"><input type="text" name="fcode" inputmode="numeric" autocomplete="off"><button type="button" id="gen">Zufällig</button></span>
       </label>
@@ -115,7 +119,7 @@ const HTML = `
     </div>
 
     <div class="pane" data-pane="t2" hidden>
-      <label class="chk"><input type="checkbox" name="fdoor"> Tür öffnen</label>
+      <label class="chk" id="doorrow"><input type="checkbox" name="fdoor"> Tür öffnen</label>
       <div class="f">Zusätzlich auslösen
         <input type="text" id="actq" placeholder="Filtern …" autocomplete="off">
         <div id="acts" class="list"></div>
@@ -144,6 +148,8 @@ class DoorcodePanel extends HTMLElement {
     this._data = { codes: [], history: [], status: "armed" };
     this._reveal = new Set();
     this._editing = null;
+    this._view = "person";
+    this._kind = "person";
     this._tags = [];
     this._cur = { actions: [], targets: [] };
     this._loaded = { actions: false, targets: false };
@@ -153,9 +159,11 @@ class DoorcodePanel extends HTMLElement {
     const $ = (s) => this._r.querySelector(s);
     this._dlg = $("#dlg");
     $("#new").onclick = () => this._open(null);
-    $("#once").onclick = () => this._open(null, { name: "Einmalcode", code: this._gen(), one_time: true, expires_at: new Date(Date.now() + 864e5).toISOString() });
+    $("#once").onclick = () => this._open(null, { kind: "person", name: "Einmalcode", code: this._gen(), one_time: true, expires_at: new Date(Date.now() + 864e5).toISOString() });
     $("#gen").onclick = () => { this._form().fcode.value = this._gen(); };
     $("#learn").onclick = () => this._learn();
+    this._r.querySelectorAll(".views button").forEach((b) => { b.onclick = () => { this._view = b.dataset.view; this._viewUI(); this._render(); }; });
+    this._viewUI();
     $("#cancel").onclick = () => this._dlg.close();
     $("#form").onsubmit = (e) => this._save(e);
     $("#form").elements.fnotify.onchange = () => this._tbox();
@@ -206,11 +214,17 @@ class DoorcodePanel extends HTMLElement {
     const chip = this._r.querySelector("#chip");
     chip.textContent = STATUS[d.status] || d.status;
     chip.className = "chip " + d.status;
-    this._r.querySelector("#list").innerHTML = d.codes.length
-      ? d.codes.map((c) => this._card(c)).join("")
-      : '<p class="muted">Noch keine Personen. Lege mit „Neue Person“ die erste an.</p>';
+    const kindOf = (c) => c.kind || "person";
+    const n = { person: d.codes.filter((c) => kindOf(c) === "person").length, action: d.codes.filter((c) => kindOf(c) === "action").length };
+    this._r.querySelectorAll(".views button").forEach((b) => { b.textContent = `${b.dataset.view === "person" ? "Personen" : "Aktionen"} (${n[b.dataset.view]})`; });
+    const shown = d.codes.filter((c) => kindOf(c) === this._view);
+    this._r.querySelector("#list").innerHTML = shown.length
+      ? shown.map((c) => this._card(c)).join("")
+      : (this._view === "action"
+        ? '<p class="muted">Noch keine Aktionen. Lege mit „Neue Aktion“ z. B. „Alarm scharf“ oder „Alle Lichter aus“ an.</p>'
+        : '<p class="muted">Noch keine Personen. Lege mit „Neue Person“ die erste an.</p>');
     this._r.querySelector("#history").innerHTML = d.history.length
-      ? d.history.map((h) => `<div class="row ${esc(h.result)}"><span class="muted">${esc(this._fmt(h.time))}</span><b>${esc(h.name || "–")}</b><span>${esc(RESULT[h.result] || h.result)}${h.method ? " · " + esc(METHOD[h.method] || h.method) : ""}</span></div>`).join("")
+      ? d.history.map((h) => `<div class="row ${esc(h.result)}"><span class="muted">${esc(this._fmt(h.time))}</span><b>${esc(h.name || "–")}</b><span>${esc(h.result === "granted" && h.kind === "action" ? "Aktion ausgelöst" : (RESULT[h.result] || h.result))}${h.method ? " · " + esc(METHOD[h.method] || h.method) : ""}</span></div>`).join("")
       : '<p class="muted">Noch keine Zugriffe.</p>';
   }
 
@@ -220,7 +234,7 @@ class DoorcodePanel extends HTMLElement {
     const meta = [];
     if (tags.length) meta.push(`NFC ×${tags.length}`);
     if ((c.actions || []).length) meta.push(`Aktionen ×${c.actions.length}`);
-    if (c.open_door === false) meta.push("ohne Türöffnung");
+    if (c.open_door === false && (c.kind || "person") !== "action") meta.push("ohne Türöffnung");
     if (c.one_time) meta.push("Einmalzugang");
     if (c.valid_from) meta.push("ab " + this._fmt(c.valid_from));
     if (c.expires_at) meta.push("bis " + this._fmt(c.expires_at));
@@ -259,6 +273,12 @@ class DoorcodePanel extends HTMLElement {
       this._showErr(err.message || String(err));
       this._render();
     }
+  }
+
+  _viewUI() {
+    this._r.querySelectorAll(".views button").forEach((b) => b.classList.toggle("on", b.dataset.view === this._view));
+    this._r.querySelector("#new").textContent = this._view === "action" ? "Neue Aktion" : "Neue Person";
+    this._r.querySelector("#once").style.display = this._view === "action" ? "none" : "";
   }
 
   // ---------- dialog ----------
@@ -345,7 +365,13 @@ class DoorcodePanel extends HTMLElement {
     this._editing = c ? c.id : null;
     const v = c || { name: "", code: "", tags: [], enabled: true, one_time: false, notify: true, notify_targets: [], open_door: true, actions: [], valid_from: null, expires_at: null, ...preset };
     const f = this._form();
-    this._r.querySelector("#title").textContent = c ? "Person bearbeiten" : "Neue Person";
+    this._kind = c ? (c.kind || "person") : (preset.kind || this._view);
+    const isAct = this._kind === "action";
+    this._r.querySelector("#title").textContent = c ? (isAct ? "Aktion bearbeiten" : "Person bearbeiten") : (isAct ? "Neue Aktion" : "Neue Person");
+    this._r.querySelector("#namelbl").textContent = isAct ? "Name der Aktion" : "Name der Person";
+    f.fname.placeholder = isAct ? "z. B. Alarm scharf oder Alles aus" : "z. B. Max oder Reinigungskraft";
+    this._r.querySelector('[data-tab="t1"]').textContent = isAct ? "Auslöser" : "Zugang";
+    this._r.querySelector("#doorrow").style.display = isAct ? "none" : "";
     f.fname.value = v.name;
     f.fcode.value = v.code || "";
     f.ffrom.value = toInput(v.valid_from);
@@ -353,7 +379,7 @@ class DoorcodePanel extends HTMLElement {
     f.fonce.checked = !!v.one_time;
     f.fnotify.checked = v.notify !== false;
     f.fenabled.checked = v.enabled !== false;
-    f.fdoor.checked = v.open_door !== false;
+    f.fdoor.checked = isAct ? false : v.open_door !== false;
     this._tags = [...(v.tags || [])];
     this._cur = { actions: [...(v.actions || [])], targets: [...(v.notify_targets || [])] };
     this._renderTags();
@@ -379,9 +405,9 @@ class DoorcodePanel extends HTMLElement {
     const checked = (n) => [...this._r.querySelectorAll(`input[name="${n}"]:checked`)].map((i) => i.value);
     const actions = this._loaded.actions ? checked("act") : this._cur.actions;
     const targets = this._loaded.targets ? checked("tgt") : this._cur.targets;
-    if (!f.fdoor.checked && !actions.length) return fail("t2", "Bitte „Tür öffnen“ aktivieren oder mindestens eine Aktion wählen.");
+    if (!f.fdoor.checked && !actions.length) return fail("t2", this._kind === "action" ? "Bitte mindestens eine Aktion wählen." : "Bitte „Tür öffnen“ aktivieren oder mindestens eine Aktion wählen.");
     const data = {
-      name, code: code || null, tags: this._tags, open_door: f.fdoor.checked, actions,
+      kind: this._kind, name, code: code || null, tags: this._tags, open_door: f.fdoor.checked, actions,
       one_time: f.fonce.checked, notify: f.fnotify.checked, notify_targets: targets,
       enabled: f.fenabled.checked, valid_from: toIso(f.ffrom.value), expires_at: toIso(f.funtil.value),
     };

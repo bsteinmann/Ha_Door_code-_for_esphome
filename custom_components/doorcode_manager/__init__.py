@@ -25,6 +25,7 @@ ADD_SCHEMA = vol.Schema(
     {
         vol.Required("name"): cv.string,
         vol.Optional("code"): vol.Any(None, cv.string),
+        vol.Optional("kind", default="person"): vol.In(["person", "action"]),
         vol.Optional("tags"): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional("open_door", default=True): cv.boolean,
         vol.Optional("actions"): vol.All(cv.ensure_list, [cv.entity_id]),

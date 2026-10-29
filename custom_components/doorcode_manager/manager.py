@@ -268,7 +268,12 @@ class DoorCodeManager:
         code = str(data["code"]).strip() if data.get("code") else None
         tags = _norm_tags(data.get("tags"))
         actions = _norm_actions(data.get("actions"))
-        open_door = data.get("open_door", True)
+        kind = data.get("kind", "person")
+        if kind not in ("person", "action"):
+            raise HomeAssistantError("Unbekannte Art des Eintrags.")
+        open_door = False if kind == "action" else data.get("open_door", True)
+        if kind == "action" and not actions:
+            raise HomeAssistantError("Bitte mindestens eine Aktion wählen.")
         if not open_door and not actions:
             raise HomeAssistantError("Bitte „Tür öffnen“ aktivieren oder mindestens eine Aktion wählen.")
         self._check(code, tags)
@@ -277,6 +282,7 @@ class DoorCodeManager:
             "id": cid,
             "name": str(data["name"]).strip(),
             "code": code,
+            "kind": kind,
             "tags": tags,
             "open_door": open_door,
             "actions": actions,
@@ -308,9 +314,14 @@ class DoorCodeManager:
         new["code"] = str(new["code"]).strip() if new.get("code") else None
         new["tags"] = _norm_tags(new.get("tags"))
         new["actions"] = _norm_actions(new.get("actions"))
-        new["open_door"] = new.get("open_door", True)
-        if not new["open_door"] and not new["actions"]:
-            raise HomeAssistantError("Bitte „Tür öffnen“ aktivieren oder mindestens eine Aktion wählen.")
+        if current.get("kind", "person") == "action":
+            new["open_door"] = False
+            if not new["actions"]:
+                raise HomeAssistantError("Bitte mindestens eine Aktion wählen.")
+        else:
+            new["open_door"] = new.get("open_door", True)
+            if not new["open_door"] and not new["actions"]:
+                raise HomeAssistantError("Bitte „Tür öffnen“ aktivieren oder mindestens eine Aktion wählen.")
         new["notify_targets"] = list(new.get("notify_targets") or [])
         new["name"] = str(new["name"]).strip()
         self._check(new["code"], new["tags"], exclude=cid)
@@ -403,6 +414,7 @@ class DoorCodeManager:
                 "time": dt_util.utcnow().isoformat(),
                 "result": result,
                 "method": method,
+                "kind": code.get("kind", "person") if code else None,
                 "code_id": code["id"] if code else None,
                 "name": code["name"] if code else None,
             },
@@ -438,6 +450,7 @@ class DoorCodeManager:
                 "code_id": code["id"],
                 "name": code["name"],
                 "use_count": code["use_count"],
+                "kind": code.get("kind", "person"),
                 "method": method,
             },
         )
@@ -517,6 +530,10 @@ class DoorCodeManager:
             or ([self.entry.data[CONF_NOTIFY]] if self.entry.data.get(CONF_NOTIFY) else [])
         )
         how = "NFC-Tag" if method == "nfc" else "PIN"
+        if code.get("kind", "person") == "action":
+            title, message = "Aktion ausgelöst", f"{code['name']} wurde per {how} ausgelöst."
+        else:
+            title, message = "Tür geöffnet", f"{code['name']} hat die Tür geöffnet ({how})."
         for target in targets:
             service = target.removeprefix("notify.")
             if not self.hass.services.has_service("notify", service):
@@ -525,7 +542,7 @@ class DoorCodeManager:
                 await self.hass.services.async_call(
                     "notify",
                     service,
-                    {"title": "Tür geöffnet", "message": f"{code['name']} hat die Tür geöffnet ({how})."},
+                    {"title": title, "message": message},
                 )
             except HomeAssistantError:
                 _LOGGER.warning("Benachrichtigung über notify.%s fehlgeschlagen", service)

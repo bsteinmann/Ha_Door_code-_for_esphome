@@ -4,6 +4,11 @@ add_code:
       required: true
       example: "Reinigungskraft"
       selector: {text: {}}
+    kind:
+      default: person
+      selector:
+        select:
+          options: [person, action]
     code:
       required: false
       example: "482913"

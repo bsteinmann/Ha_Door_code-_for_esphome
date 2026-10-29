@@ -36,6 +36,26 @@ Ausgelöst wird zusätzlich zur Türöffnung – oder allein, wenn „Tür öffn
 `method`; Automationen laufen ohne ihre Bedingungen. Wer feinere Logik will, nutzt das Event `doorcode_manager_code_used`.
 Achtung: Ein Code kann damit mehr als die Tür steuern – vergib solche Codes mit Bedacht.
 
+## Eigenständige Aktionen (ohne Person)
+Im Panel gibt es zwei Ansichten: **Personen** (öffnen die Tür, optional mit Zusatzaktionen) und **Aktionen**
+(lösen nur Entitäten aus, ohne die Tür zu öffnen). Eine Aktion hat einen eigenen PIN und/oder NFC-Tags, Gültigkeit,
+Aktionsliste (Label-Filter wie oben) und Benachrichtigung. Beispiele:
+- **Alarm scharf:** Skript, das deine Alarmanlage scharf schaltet, als Aktion mit PIN oder NFC-Tag.
+- **Wallbox für Auto A:** Ein NFC-Tag im Auto, die Aktion startet ein Skript mit den Wallbox-Einstellungen für dieses Auto.
+- **Alles aus:** Skript, das alle Lichter ausschaltet.
+
+```yaml
+script:
+  alles_aus:
+    alias: Alles aus
+    sequence:
+      - action: light.turn_off
+        target: { entity_id: all }
+```
+Für Anlagen mit Code/Modus wickelst du die Logik in ein Skript (Skripte bekommen `person` = Name der Aktion, `code_id`, `method`).
+Achtung: Wer einen Alarm per PIN *entschärft*, macht ihn so gut erratbar wie den PIN. Für sicherheitskritische Aktionen
+lieber NFC-Tags oder lange PINs nutzen; die Sperre nach Fehlversuchen gilt für alle Eingaben gemeinsam.
+
 ## Benachrichtigungen
 Pro Person wählst du die Empfänger aus einer Liste aller Geräte mit Companion-App (mit Personenname, falls zuordenbar).
 Ohne Auswahl gelten die Standard-Empfänger aus den Integrations-Optionen (jederzeit änderbar; ältere Einstellung aus der Einrichtung bleibt als Rückfall bestehen).
