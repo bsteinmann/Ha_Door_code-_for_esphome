@@ -3,7 +3,7 @@ const STATUS = { armed: "Bereit", code_accepted: "Tür geöffnet", code_rejected
 const STATE = { active: "Aktiv", disabled: "Deaktiviert", used: "Verbraucht", expired: "Abgelaufen", scheduled: "Geplant" };
 const RESULT = { granted: "Tür geöffnet", denied: "Abgelehnt", lockout: "Versuch während Sperre" };
 const METHOD = { pin: "PIN", nfc: "NFC" };
-const ACTION_DOMAINS = ["script", "scene", "automation", "button", "input_button", "switch", "light", "input_boolean", "lock", "cover"];
+const DOMAIN_LABEL = { script: "Skripte", scene: "Szenen", automation: "Automationen", button: "Buttons", input_button: "Buttons", switch: "Schalter", light: "Lichter", input_boolean: "Schalter (Helfer)", lock: "Schlösser", cover: "Rollläden/Tore" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const pad = (n) => String(n).padStart(2, "0");
@@ -50,10 +50,15 @@ button.danger{color:var(--error-color)}
 .acts label{flex:1;display:flex;align-items:center;gap:6px;cursor:pointer}
 .hist .row{display:grid;grid-template-columns:150px 1fr auto;gap:10px;padding:7px 4px;border-bottom:1px solid var(--divider-color);font-size:14px}
 .hist .row.denied span:last-child,.hist .row.lockout span:last-child{color:var(--error-color)}
-dialog{border:none;border-radius:14px;padding:0;background:var(--card-background-color);color:var(--primary-text-color);width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 24px)}
+dialog{border:none;border-radius:14px;padding:0;background:var(--card-background-color);color:var(--primary-text-color);width:min(480px,calc(100vw - 24px));max-height:calc(100vh - 24px)}
 dialog::backdrop{background:rgba(0,0,0,.5)}
 form{padding:20px;display:flex;flex-direction:column;gap:12px}
 form h3{margin:0;font-size:18px;font-weight:500}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--divider-color)}
+.tabs button{border:none;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:8px 12px}
+.tabs button.on{border-bottom-color:var(--primary-color);color:var(--primary-color)}
+.pane{display:flex;flex-direction:column;gap:12px;min-height:300px}
+.pane[hidden]{display:none}
 .f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--secondary-text-color)}
 input[type=text],input[type=datetime-local]{font:inherit;padding:9px 10px;border-radius:8px;border:1px solid var(--divider-color);background:var(--primary-background-color);color:var(--primary-text-color)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -62,8 +67,9 @@ input[type=text],input[type=datetime-local]{font:inherit;padding:9px 10px;border
 .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .chip2{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--divider-color);border-radius:14px;padding:3px 4px 3px 10px;font-size:13px;color:var(--primary-text-color)}
 .chip2 button{padding:0 8px;border:none;border-radius:10px;font-size:16px;line-height:1.5;background:transparent}
-select{font:inherit;padding:9px 10px;border-radius:8px;border:1px solid var(--divider-color);background:var(--primary-background-color);color:var(--primary-text-color);flex:1;min-width:0}
-.targets{display:flex;flex-direction:column;gap:6px;max-height:140px;overflow:auto}
+.list{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow:auto;border:1px solid var(--divider-color);border-radius:8px;padding:8px}
+.grp{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--secondary-text-color);margin-top:4px}
+.grp:first-child{margin-top:0}
 .derr{color:var(--error-color);font-size:14px;min-height:1em}
 .btns{display:flex;justify-content:flex-end;gap:8px}
 .btns .primary{background:var(--primary-color);color:#fff;border-color:var(--primary-color)}
@@ -85,31 +91,46 @@ const HTML = `
 <dialog id="dlg">
   <form id="form" novalidate>
     <h3 id="title"></h3>
-    <label class="f">Name der Person<input type="text" name="fname" maxlength="40" required placeholder="z. B. Max oder Reinigungskraft"></label>
-    <label class="f">PIN-Code (optional, 4–12 Ziffern)
-      <span class="crow"><input type="text" name="fcode" inputmode="numeric" autocomplete="off"><button type="button" id="gen">Zufällig</button></span>
-    </label>
-    <div class="f">NFC-Tags (optional)
-      <div id="tags" class="tags"></div>
-      <div><button type="button" id="learn">Tag anlernen</button></div>
+    <div class="tabs" role="tablist">
+      <button type="button" role="tab" data-tab="t1" class="on">Zugang</button>
+      <button type="button" role="tab" data-tab="t2">Aktionen</button>
+      <button type="button" role="tab" data-tab="t3">Benachrichtigung</button>
     </div>
-    <label class="chk"><input type="checkbox" name="fdoor"> Tür öffnen</label>
-    <div class="f">Zusätzliche Aktionen (Skripte, Szenen, Automationen …)
-      <div id="acts" class="tags"></div>
-      <div class="crow"><select id="actsel"></select><button type="button" id="actadd">Hinzufügen</button></div>
-      <span class="small">Skripte erhalten die Variablen person, code_id und method (pin/nfc).</span>
+
+    <div class="pane" data-pane="t1">
+      <label class="f">Name<input type="text" name="fname" maxlength="40" required placeholder="z. B. Max oder Reinigungskraft"></label>
+      <label class="f">PIN-Code (optional, 4–12 Ziffern)
+        <span class="crow"><input type="text" name="fcode" inputmode="numeric" autocomplete="off"><button type="button" id="gen">Zufällig</button></span>
+      </label>
+      <div class="f">NFC-Tags (optional)
+        <div id="tags" class="tags"></div>
+        <div><button type="button" id="learn">Tag anlernen</button></div>
+      </div>
+      <div class="two">
+        <label class="f">Gültig ab<input type="datetime-local" name="ffrom"></label>
+        <label class="f">Gültig bis<input type="datetime-local" name="funtil"></label>
+      </div>
+      <label class="chk"><input type="checkbox" name="fonce"> Einmalzugang: nach der ersten Nutzung ungültig</label>
+      <label class="chk"><input type="checkbox" name="fenabled"> Aktiviert</label>
     </div>
-    <div class="two">
-      <label class="f">Gültig ab<input type="datetime-local" name="ffrom"></label>
-      <label class="f">Gültig bis<input type="datetime-local" name="funtil"></label>
+
+    <div class="pane" data-pane="t2" hidden>
+      <label class="chk"><input type="checkbox" name="fdoor"> Tür öffnen</label>
+      <div class="f">Zusätzlich auslösen
+        <input type="text" id="actq" placeholder="Filtern …" autocomplete="off">
+        <div id="acts" class="list"></div>
+        <span id="acthint" class="small"></span>
+      </div>
     </div>
-    <label class="chk"><input type="checkbox" name="fonce"> Einmalzugang: nach der ersten Nutzung ungültig</label>
-    <label class="chk"><input type="checkbox" name="fenabled"> Aktiviert</label>
-    <label class="chk"><input type="checkbox" name="fnotify"> Benachrichtigung bei Nutzung</label>
-    <div id="tbox" class="f">Benachrichtigen (Geräte mit Companion-App)
-      <div id="targets" class="targets"></div>
-      <span class="small">Ohne Auswahl wird der in der Integration hinterlegte Benachrichtigungsdienst verwendet, falls vorhanden.</span>
+
+    <div class="pane" data-pane="t3" hidden>
+      <label class="chk"><input type="checkbox" name="fnotify"> Benachrichtigung bei Nutzung</label>
+      <div id="tbox" class="f">Empfänger (Geräte mit Companion-App)
+        <div id="targets" class="list"></div>
+        <span class="small">Ohne Auswahl gelten die Standard-Empfänger aus den Integrations-Optionen.</span>
+      </div>
     </div>
+
     <div id="derr" class="derr"></div>
     <div class="btns"><button type="button" id="cancel">Abbrechen</button><button type="submit" class="primary">Speichern</button></div>
   </form>
@@ -124,7 +145,8 @@ class DoorcodePanel extends HTMLElement {
     this._reveal = new Set();
     this._editing = null;
     this._tags = [];
-    this._actions = [];
+    this._cur = { actions: [], targets: [] };
+    this._loaded = { actions: false, targets: false };
     this._unsub = null;
     this._subscribing = false;
 
@@ -134,17 +156,11 @@ class DoorcodePanel extends HTMLElement {
     $("#once").onclick = () => this._open(null, { name: "Einmalcode", code: this._gen(), one_time: true, expires_at: new Date(Date.now() + 864e5).toISOString() });
     $("#gen").onclick = () => { this._form().fcode.value = this._gen(); };
     $("#learn").onclick = () => this._learn();
-    $("#actadd").onclick = () => {
-      const v = $("#actsel").value;
-      if (v && !this._actions.includes(v)) { this._actions.push(v); this._renderActions(); }
-    };
-    $("#acts").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-ra]");
-      if (b) { this._actions.splice(Number(b.dataset.ra), 1); this._renderActions(); }
-    });
     $("#cancel").onclick = () => this._dlg.close();
     $("#form").onsubmit = (e) => this._save(e);
     $("#form").elements.fnotify.onchange = () => this._tbox();
+    $("#actq").oninput = () => this._filterActions();
+    this._r.querySelectorAll(".tabs button").forEach((b) => { b.onclick = () => this._tab(b.dataset.tab); });
     $("#tags").addEventListener("click", (e) => {
       const b = e.target.closest("[data-rm]");
       if (b) { this._tags.splice(Number(b.dataset.rm), 1); this._renderTags(); }
@@ -245,43 +261,67 @@ class DoorcodePanel extends HTMLElement {
     }
   }
 
+  // ---------- dialog ----------
+  _tab(name) {
+    this._r.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+    this._r.querySelectorAll(".pane").forEach((p) => { p.hidden = p.dataset.pane !== name; });
+  }
+
   _renderTags() {
-    const box = this._r.querySelector("#tags");
-    box.innerHTML = this._tags.length
+    this._r.querySelector("#tags").innerHTML = this._tags.length
       ? this._tags.map((t, i) => `<span class="chip2" title="${esc(t)}">Tag ${i + 1} · …${esc(t.slice(-5))}<button type="button" data-rm="${i}" aria-label="Tag entfernen">×</button></span>`).join("")
       : '<span class="muted small">Noch kein Tag zugeordnet</span>';
-  }
-
-  _renderActions() {
-    const st = this._hass?.states || {};
-    this._r.querySelector("#acts").innerHTML = this._actions.length
-      ? this._actions.map((a, i) => `<span class="chip2" title="${esc(a)}">${esc(st[a]?.attributes?.friendly_name || a)}<button type="button" data-ra="${i}" aria-label="Aktion entfernen">×</button></span>`).join("")
-      : '<span class="muted small">Keine zusätzlichen Aktionen</span>';
-  }
-
-  _fillActions() {
-    const st = this._hass?.states || {};
-    const opts = Object.keys(st)
-      .filter((id) => ACTION_DOMAINS.includes(id.split(".")[0]))
-      .map((id) => [id, st[id].attributes?.friendly_name || id])
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([id, n]) => `<option value="${esc(id)}">${esc(n)} (${esc(id)})</option>`);
-    this._r.querySelector("#actsel").innerHTML = '<option value="">Entität wählen …</option>' + opts.join("");
   }
 
   _tbox() { this._r.querySelector("#tbox").style.display = this._form().fnotify.checked ? "" : "none"; }
 
   async _loadTargets(selected) {
     const box = this._r.querySelector("#targets");
+    this._loaded.targets = false;
     box.innerHTML = '<span class="muted small">Lade …</span>';
     try {
       const list = await this._call("notify_targets");
-      box.innerHTML = list.length
-        ? list.map((t) => `<label class="chk"><input type="checkbox" name="tgt" value="${esc(t.service)}" ${selected.includes(t.service) ? "checked" : ""}> ${esc(t.label)}</label>`).join("")
+      const known = new Set(list.map((t) => t.service));
+      const all = [...list, ...selected.filter((s) => !known.has(s)).map((s) => ({ service: s, label: `${s} (nicht gefunden)` }))];
+      box.innerHTML = all.length
+        ? all.map((t) => `<label class="chk"><input type="checkbox" name="tgt" value="${esc(t.service)}" ${selected.includes(t.service) ? "checked" : ""}> ${esc(t.label)}</label>`).join("")
         : '<span class="muted small">Keine Geräte mit Companion-App gefunden.</span>';
+      this._loaded.targets = true;
     } catch (e) {
       box.innerHTML = `<span class="muted small">${esc(e.message || e)}</span>`;
     }
+  }
+
+  async _loadActions(selected) {
+    const box = this._r.querySelector("#acts");
+    const hint = this._r.querySelector("#acthint");
+    this._loaded.actions = false;
+    this._r.querySelector("#actq").value = "";
+    hint.textContent = "";
+    box.innerHTML = '<span class="muted small">Lade …</span>';
+    try {
+      const res = await this._call("action_entities");
+      const st = this._hass?.states || {};
+      const known = new Set(res.entities.map((e) => e.entity_id));
+      const extra = selected.filter((s) => !known.has(s)).map((s) => ({ entity_id: s, name: `${st[s]?.attributes?.friendly_name || s} (ohne Label)`, domain: s.split(".")[0] }));
+      const all = [...res.entities, ...extra];
+      const groups = {};
+      all.forEach((e) => { (groups[DOMAIN_LABEL[e.domain] || e.domain] ||= []).push(e); });
+      box.innerHTML = all.length
+        ? Object.entries(groups).map(([g, items]) => `<div class="grp">${esc(g)}</div>` + items.map((e) => `<label class="chk" data-q="${esc((e.name + " " + e.entity_id).toLowerCase())}"><input type="checkbox" name="act" value="${esc(e.entity_id)}" ${selected.includes(e.entity_id) ? "checked" : ""}> ${esc(e.name)}</label>`).join("")).join("")
+        : '<span class="muted small">Keine Entitäten gefunden.</span>';
+      if (!res.label) hint.textContent = "Noch kein Label festgelegt: Integrations-Optionen → „Label für wählbare Aktionen“. Danach Skripten, Szenen usw. dieses Label geben.";
+      else if (!res.entities.length) hint.textContent = `Keine Entität mit dem Label „${res.label}“ gefunden.`;
+      else hint.textContent = `Angezeigt werden nur Entitäten mit dem Label „${res.label}“.`;
+      this._loaded.actions = true;
+    } catch (e) {
+      box.innerHTML = `<span class="muted small">${esc(e.message || e)}</span>`;
+    }
+  }
+
+  _filterActions() {
+    const q = this._r.querySelector("#actq").value.trim().toLowerCase();
+    this._r.querySelectorAll("#acts label").forEach((l) => { l.style.display = !q || l.dataset.q.includes(q) ? "" : "none"; });
   }
 
   async _learn() {
@@ -303,7 +343,7 @@ class DoorcodePanel extends HTMLElement {
 
   _open(c, preset = {}) {
     this._editing = c ? c.id : null;
-    const v = c || { name: "", code: "", tags: [], enabled: true, one_time: false, notify: true, notify_targets: [], valid_from: null, expires_at: null, ...preset };
+    const v = c || { name: "", code: "", tags: [], enabled: true, one_time: false, notify: true, notify_targets: [], open_door: true, actions: [], valid_from: null, expires_at: null, ...preset };
     const f = this._form();
     this._r.querySelector("#title").textContent = c ? "Person bearbeiten" : "Neue Person";
     f.fname.value = v.name;
@@ -315,12 +355,12 @@ class DoorcodePanel extends HTMLElement {
     f.fenabled.checked = v.enabled !== false;
     f.fdoor.checked = v.open_door !== false;
     this._tags = [...(v.tags || [])];
+    this._cur = { actions: [...(v.actions || [])], targets: [...(v.notify_targets || [])] };
     this._renderTags();
-    this._actions = [...(v.actions || [])];
-    this._renderActions();
-    this._fillActions();
     this._tbox();
-    this._loadTargets(v.notify_targets || []);
+    this._tab("t1");
+    this._loadTargets(this._cur.targets);
+    this._loadActions(this._cur.actions);
     this._r.querySelector("#derr").textContent = "";
     this._dlg.showModal();
   }
@@ -329,16 +369,21 @@ class DoorcodePanel extends HTMLElement {
     e.preventDefault();
     const f = this._form();
     const derr = this._r.querySelector("#derr");
+    const fail = (tab, msg) => { this._tab(tab); derr.textContent = msg; };
     const name = f.fname.value.trim();
     const code = f.fcode.value.trim();
-    if (!name) { derr.textContent = "Bitte einen Namen eingeben."; return; }
-    if (code && !/^[0-9]{4,12}$/.test(code)) { derr.textContent = "Der PIN muss aus 4 bis 12 Ziffern bestehen."; return; }
-    if (!code && !this._tags.length) { derr.textContent = "Bitte einen PIN oder mindestens einen NFC-Tag angeben."; return; }
-    if (!f.fdoor.checked && !this._actions.length) { derr.textContent = "Bitte „Tür öffnen“ aktivieren oder mindestens eine Aktion wählen."; return; }
-    const targets = [...this._r.querySelectorAll('input[name="tgt"]:checked')].map((i) => i.value);
+    if (!name) return fail("t1", "Bitte einen Namen eingeben.");
+    if (code && !/^[0-9]{4,12}$/.test(code)) return fail("t1", "Der PIN muss aus 4 bis 12 Ziffern bestehen.");
+    if (!code && !this._tags.length) return fail("t1", "Bitte einen PIN oder mindestens einen NFC-Tag angeben.");
+    // if a list failed to load, keep what was stored instead of silently dropping it
+    const checked = (n) => [...this._r.querySelectorAll(`input[name="${n}"]:checked`)].map((i) => i.value);
+    const actions = this._loaded.actions ? checked("act") : this._cur.actions;
+    const targets = this._loaded.targets ? checked("tgt") : this._cur.targets;
+    if (!f.fdoor.checked && !actions.length) return fail("t2", "Bitte „Tür öffnen“ aktivieren oder mindestens eine Aktion wählen.");
     const data = {
-      name, code: code || null, tags: this._tags, open_door: f.fdoor.checked, actions: this._actions, one_time: f.fonce.checked, notify: f.fnotify.checked,
-      notify_targets: targets, enabled: f.fenabled.checked, valid_from: toIso(f.ffrom.value), expires_at: toIso(f.funtil.value),
+      name, code: code || null, tags: this._tags, open_door: f.fdoor.checked, actions,
+      one_time: f.fonce.checked, notify: f.fnotify.checked, notify_targets: targets,
+      enabled: f.fenabled.checked, valid_from: toIso(f.ffrom.value), expires_at: toIso(f.funtil.value),
     };
     try {
       if (this._editing) await this._call("update", { code_id: this._editing, ...data });

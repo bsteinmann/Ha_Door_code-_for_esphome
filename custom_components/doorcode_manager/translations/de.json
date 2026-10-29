@@ -26,7 +26,8 @@
           "failed_attempts_threshold": "Fehlversuche bis zur Sperre",
           "lockout_duration": "Sperrdauer (Sekunden)",
           "tag_devices": "Nur Tags dieser Leser akzeptieren (leer = alle)",
-          "default_notify_targets": "Standard-Empfänger für Benachrichtigungen (Geräte mit Companion-App)"
+          "default_notify_targets": "Standard-Empfänger für Benachrichtigungen (Geräte mit Companion-App)",
+          "action_label": "Label für wählbare Aktionen (im Panel erscheinen nur Entitäten mit diesem Label)"
         }
       }
     }

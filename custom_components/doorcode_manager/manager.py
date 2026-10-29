@@ -12,6 +12,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import CALLBACK_TYPE, Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import label_registry as lr
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
     async_call_later,
@@ -39,6 +41,7 @@ from .const import (
     EVENT_INVALID_CODE,
     EVENT_LOCKOUT,
     HISTORY_LIMIT,
+    OPT_ACTION_LABEL,
     OPT_LOCKOUT,
     OPT_MAX_FAILED,
     OPT_NOTIFY_DEFAULT,
@@ -206,6 +209,22 @@ class DoorCodeManager:
         ]
         result.sort(key=lambda r: r["label"].lower())
         return result
+
+    def action_entities(self) -> dict[str, Any]:
+        """Entities offered as actions: only those carrying the configured label."""
+        label_id = self.entry.options.get(OPT_ACTION_LABEL)
+        if not label_id:
+            return {"label": None, "entities": []}
+        label = lr.async_get(self.hass).async_get_label(label_id)
+        entities = []
+        for entry in er.async_get(self.hass).entities.values():
+            if label_id not in entry.labels or entry.disabled_by or entry.domain not in ACTION_DOMAINS:
+                continue
+            state = self.hass.states.get(entry.entity_id)
+            name = (state.name if state else None) or entry.name or entry.original_name or entry.entity_id
+            entities.append({"entity_id": entry.entity_id, "name": name, "domain": entry.domain})
+        entities.sort(key=lambda e: (e["domain"], e["name"].lower()))
+        return {"label": label.name if label else label_id, "entities": entities}
 
     # ---------- NFC learning ----------
     async def async_learn_tag(self, timeout: float = 30) -> str:

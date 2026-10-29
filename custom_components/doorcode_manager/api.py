@@ -36,6 +36,7 @@ def async_setup(hass: HomeAssistant) -> None:
         ws_learn_tag,
         ws_cancel_learn,
         ws_notify_targets,
+        ws_action_entities,
     ):
         websocket_api.async_register_command(hass, command)
 
@@ -157,3 +158,13 @@ def ws_notify_targets(hass, connection, msg) -> None:
     if manager is None:
         return
     connection.send_result(msg["id"], manager.notify_targets())
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/action_entities"})
+@callback
+def ws_action_entities(hass, connection, msg) -> None:
+    manager = _manager(hass, connection, msg)
+    if manager is None:
+        return
+    connection.send_result(msg["id"], manager.action_entities())

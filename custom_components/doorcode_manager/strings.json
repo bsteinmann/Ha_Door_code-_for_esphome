@@ -26,7 +26,8 @@
           "failed_attempts_threshold": "Failed attempts before lockout",
           "lockout_duration": "Lockout duration (seconds)",
           "tag_devices": "Only accept tags from these readers (empty = all)",
-          "default_notify_targets": "Default notification recipients (companion-app devices)"
+          "default_notify_targets": "Default notification recipients (companion-app devices)",
+          "action_label": "Label for selectable actions (the panel only offers entities with this label)"
         }
       }
     }
