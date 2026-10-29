@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Door Code Manager",
+        "description": "Pick your keypad sensor (ESPHome text sensor) and the door opener. Manage codes afterwards in the sidebar under \"Türcodes\".",
+        "data": {
+          "keypad_entity": "Keypad sensor",
+          "trigger_entity": "Trigger \"code received\" (optional, binary sensor)",
+          "door_opener_entity": "Door opener (switch, button or lock)",
+          "notification_target": "Notify service, e.g. notify.mobile_app_iphone (optional)"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Door Code Manager is already set up.",
+      "single_instance_allowed": "Door Code Manager is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "auto_lock_delay": "Door opener pulse length (seconds)",
+          "failed_attempts_threshold": "Failed attempts before lockout",
+          "lockout_duration": "Lockout duration (seconds)",
+          "tag_devices": "Only accept tags from these readers (empty = all)",
+          "default_notify_targets": "Default notification recipients (companion-app devices)",
+          "action_label": "Label for selectable actions (the panel only offers entities with this label)"
+        }
+      }
+    }
+  }
+}

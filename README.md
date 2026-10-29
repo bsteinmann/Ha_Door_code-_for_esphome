@@ -1,4 +1,4 @@
-# Door Code Manager 2.2.0 – NFC
+# Door Code Manager 2.0
 
 Türcodes für ESPHome-Keypad + Shelly-Türöffner, verwaltet über ein Seitenmenü-Panel **„Türcodes“** (nur Administratoren).
 
@@ -25,11 +25,16 @@ Optional: In den Integrations-Optionen kannst du die Leser (Geräte) festlegen, 
 Sonst öffnet auch ein Scan mit einer Companion-App, sofern der Tag einer Person gehört.
 
 ## Aktionen
-Pro Person (PIN oder NFC) lässt sich zusätzlich zur Türöffnung – oder statt ihr, wenn „Tür öffnen“ aus ist –
-eine Liste von Entitäten auslösen: Skripte (bekommen `person`, `code_id`, `method`), Szenen, Automationen
-(Bedingungen werden übersprungen), Buttons, Schalter/Lichter/Input-Booleans (einschalten), Schlösser (entsperren),
-Rollläden/Tore (öffnen). Wer feinere Logik will, nutzt das Event `doorcode_manager_code_used` in einer eigenen Automation.
-Achtung: Ein Code kann damit mehr als eine Tür steuern – vergib solche Codes mit Bedacht.
+Im Dialog *Person bearbeiten* gibt es den Reiter **Aktionen** (für Personen und Einmalcodes). Dort erscheinen nur
+Entitäten mit einem **Label**, das du einmal festlegst:
+1. Einstellungen → Bereiche, Labels & Zonen → Labels: Label anlegen (z. B. „Türaktion“).
+2. Dieses Label an Skripte, Szenen, Automationen usw. vergeben (Entität öffnen → Zahnrad → Labels).
+   Nur Entitäten mit eindeutiger ID können Labels bekommen (bei YAML-Szenen/-Skripten eine `id` bzw. `unique_id` setzen).
+3. Integrations-Optionen → *Label für wählbare Aktionen* auswählen.
+
+Ausgelöst wird zusätzlich zur Türöffnung – oder allein, wenn „Tür öffnen“ aus ist. Skripte bekommen `person`, `code_id`,
+`method`; Automationen laufen ohne ihre Bedingungen. Wer feinere Logik will, nutzt das Event `doorcode_manager_code_used`.
+Achtung: Ein Code kann damit mehr als die Tür steuern – vergib solche Codes mit Bedacht.
 
 ## Benachrichtigungen
 Pro Person wählst du die Empfänger aus einer Liste aller Geräte mit Companion-App (mit Personenname, falls zuordenbar).
