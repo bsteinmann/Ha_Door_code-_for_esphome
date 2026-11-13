@@ -56,6 +56,16 @@ Für Anlagen mit Code/Modus wickelst du die Logik in ein Skript (Skripte bekomme
 Achtung: Wer einen Alarm per PIN *entschärft*, macht ihn so gut erratbar wie den PIN. Für sicherheitskritische Aktionen
 lieber NFC-Tags oder lange PINs nutzen; die Sperre nach Fehlversuchen gilt für alle Eingaben gemeinsam.
 
+## Fehlversuche
+Im Panel zeigt der Reiter **Fehlversuche** eine Tabelle der abgelehnten Eingaben, sortiert nach Häufigkeit (Code bzw. Tag-ID,
+Art, Versuche, zuletzt, Hinweis). Der Hinweis sagt, ob der Code unbekannt ist oder zu einem Eintrag gehört, der gerade nicht
+nutzbar ist (abgelaufen, deaktiviert, verbraucht, noch nicht gültig). Im Verlauf steht bei abgelehnten Versuchen ebenfalls der eingegebene Code.
+- Aufgezeichnet wird ab dieser Version; frühere Fehlversuche wurden nicht gespeichert. Es werden maximal 200 verschiedene Codes geführt.
+- Eingaben während einer Sperre werden nicht ausgewertet und deshalb nicht erfasst.
+- Datenschutz: Die Werte liegen im Klartext in `/config/.storage/doorcode_manager.codes`. Ein Tippfehler kann ein echter PIN sein.
+  Abschaltbar in den Integrations-Optionen („Falsch eingegebene Codes … protokollieren“). Das Event `doorcode_manager_invalid_code`
+  enthält bewusst nur `reason`, nicht den Code.
+
 ## Benachrichtigungen
 Pro Person wählst du die Empfänger aus einer Liste aller Geräte mit Companion-App (mit Personenname, falls zuordenbar).
 Ohne Auswahl gelten die Standard-Empfänger aus den Integrations-Optionen (jederzeit änderbar; ältere Einstellung aus der Einrichtung bleibt als Rückfall bestehen).

@@ -27,7 +27,8 @@
           "lockout_duration": "Lockout duration (seconds)",
           "tag_devices": "Only accept tags from these readers (empty = all)",
           "default_notify_targets": "Default notification recipients (companion-app devices)",
-          "action_label": "Label for selectable actions (the panel only offers entities with this label)"
+          "action_label": "Label for selectable actions (the panel only offers entities with this label)",
+          "log_rejected_codes": "Log wrongly entered codes and unknown tags (plain text, visible to admins only)"
         }
       }
     }

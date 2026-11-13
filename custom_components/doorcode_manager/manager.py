@@ -43,10 +43,12 @@ from .const import (
     HISTORY_LIMIT,
     OPT_ACTION_LABEL,
     OPT_LOCKOUT,
+    OPT_LOG_REJECTED,
     OPT_MAX_FAILED,
     OPT_NOTIFY_DEFAULT,
     OPT_PULSE,
     OPT_TAG_DEVICES,
+    REJECT_LIMIT,
     SIGNAL_UPDATE,
 )
 
@@ -96,6 +98,7 @@ class DoorCodeManager:
         self._store: Store = Store(hass, 1, f"{DOMAIN}.codes")
         self.codes: dict[str, dict[str, Any]] = {}
         self.history: list[dict[str, Any]] = []
+        self.rejected: dict[str, dict[str, Any]] = {}
         self.status = "armed"
         self.failed = 0
         self.lockout_until = None
@@ -109,6 +112,7 @@ class DoorCodeManager:
         data = await self._store.async_load() or {}
         self.codes = data.get("codes", {})
         self.history = data.get("history", [])
+        self.rejected = data.get("rejected", {})
         trigger = self.entry.data.get(CONF_TRIGGER)
         if trigger:
             self._unsubs.append(
@@ -137,7 +141,7 @@ class DoorCodeManager:
         await self._store.async_save(self._payload())
 
     def _payload(self) -> dict[str, Any]:
-        return {"codes": self.codes, "history": self.history}
+        return {"codes": self.codes, "history": self.history, "rejected": self.rejected}
 
     def _signal(self) -> None:
         async_dispatcher_send(self.hass, SIGNAL_UPDATE)
@@ -177,6 +181,10 @@ class DoorCodeManager:
         return {
             "codes": codes,
             "history": self.history[:50],
+            "rejected": sorted(
+                self.rejected.values(), key=lambda r: (r["count"], r["last"]), reverse=True
+            ),
+            "log_rejected": self.entry.options.get(OPT_LOG_REJECTED, True),
             "status": self.status,
             "failed": self.failed,
             "lockout_until": self.lockout_until.isoformat() if self._locked() else None,
@@ -386,16 +394,18 @@ class DoorCodeManager:
 
     async def _async_handle_input(self, entered: str) -> None:
         await self._attempt(
-            "pin", lambda c: bool(c.get("code")) and self._matches(c["code"], entered)
+            "pin", lambda c: bool(c.get("code")) and self._matches(c["code"], entered), entered
         )
 
     async def _async_handle_tag(self, tag_id: str) -> None:
         key = tag_id.casefold()
         await self._attempt(
-            "nfc", lambda c: key in [t.casefold() for t in c.get("tags", [])]
+            "nfc", lambda c: key in [t.casefold() for t in c.get("tags", [])], tag_id
         )
 
-    async def _attempt(self, method: str, match: Callable[[dict[str, Any]], bool]) -> None:
+    async def _attempt(
+        self, method: str, match: Callable[[dict[str, Any]], bool], entered: str | None = None
+    ) -> None:
         if self._locked():
             self._log("lockout", method=method)
             self._changed()
@@ -405,9 +415,38 @@ class DoorCodeManager:
             if match(code) and self.code_status(code, now) == "active":
                 await self._grant(code, now, method)
                 return
-        self._deny(method)
+        self._deny(method, entered, match)
 
-    def _log(self, result: str, code: dict[str, Any] | None = None, method: str | None = None) -> None:
+    def _record_reject(self, method: str, value: str, reason: str, owner: str | None) -> None:
+        now = dt_util.utcnow().isoformat()
+        key = f"{method}:{value}"
+        row = self.rejected.get(key)
+        if row:
+            row.update(count=row["count"] + 1, last=now, reason=reason, owner=owner)
+        else:
+            self.rejected[key] = {
+                "value": value, "method": method, "count": 1,
+                "first": now, "last": now, "reason": reason, "owner": owner,
+            }
+        overflow = len(self.rejected) - REJECT_LIMIT
+        if overflow > 0:  # drop the least frequent / least recent entries
+            for stale in sorted(self.rejected, key=lambda k: (self.rejected[k]["count"], self.rejected[k]["last"]))[:overflow]:
+                del self.rejected[stale]
+
+    @callback
+    def clear_rejected(self) -> None:
+        self.rejected.clear()
+        self._changed()
+
+    def _log(
+        self,
+        result: str,
+        code: dict[str, Any] | None = None,
+        method: str | None = None,
+        entered: str | None = None,
+        reason: str | None = None,
+        owner: str | None = None,
+    ) -> None:
         self.history.insert(
             0,
             {
@@ -417,6 +456,9 @@ class DoorCodeManager:
                 "kind": code.get("kind", "person") if code else None,
                 "code_id": code["id"] if code else None,
                 "name": code["name"] if code else None,
+                "entered": entered,
+                "reason": reason,
+                "owner": owner,
             },
         )
         del self.history[HISTORY_LIMIT:]
@@ -461,11 +503,23 @@ class DoorCodeManager:
         if code.get("notify", True):
             await self._notify(code, method)
 
-    def _deny(self, method: str) -> None:
+    def _deny(self, method: str, entered: str | None = None, match=None) -> None:
         self.failed += 1
-        self._log("denied", method=method)
+        shown = reason = owner = None
+        if entered is not None and self.entry.options.get(OPT_LOG_REJECTED, True):
+            shown = str(entered)[:64]
+            reason = "unknown"
+            now = dt_util.utcnow()
+            for code in self.codes.values():
+                if match is not None and match(code):
+                    # a real entry, but currently not usable (expired, disabled, used, not yet valid)
+                    reason, owner = self.code_status(code, now), code["name"]
+                    break
+            self._record_reject(method, shown, reason, owner)
+        self._log("denied", method=method, entered=shown, reason=reason, owner=owner)
         self.hass.bus.async_fire(
-            EVENT_INVALID_CODE, {"failed_attempts": self.failed, "method": method}
+            EVENT_INVALID_CODE,
+            {"failed_attempts": self.failed, "method": method, "reason": reason},
         )
         if self.failed >= self._opt(OPT_MAX_FAILED, DEFAULT_MAX_FAILED):
             duration = self._opt(OPT_LOCKOUT, DEFAULT_LOCKOUT)

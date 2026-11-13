@@ -3,6 +3,7 @@ const STATUS = { armed: "Bereit", code_accepted: "Akzeptiert", code_rejected: "Z
 const STATE = { active: "Aktiv", disabled: "Deaktiviert", used: "Verbraucht", expired: "Abgelaufen", scheduled: "Geplant" };
 const RESULT = { granted: "Tür geöffnet", denied: "Abgelehnt", lockout: "Versuch während Sperre" };
 const METHOD = { pin: "PIN", nfc: "NFC" };
+const REASON = { expired: "abgelaufen", disabled: "deaktiviert", used: "bereits verbraucht", scheduled: "noch nicht gültig" };
 const DOMAIN_LABEL = { script: "Skripte", scene: "Szenen", automation: "Automationen", button: "Buttons", input_button: "Buttons", switch: "Schalter", light: "Lichter", input_boolean: "Schalter (Helfer)", lock: "Schlösser", cover: "Rollläden/Tore" };
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -76,6 +77,14 @@ input[type=text],input[type=datetime-local]{font:inherit;padding:9px 10px;border
 .views{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--divider-color)}
 .views button{border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;padding:10px 16px;font-size:15px}
 .views button.on{border-bottom-color:var(--primary-color);color:var(--primary-color);font-weight:500}
+[hidden]{display:none!important}
+.rejhead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}
+.tblwrap{overflow:auto;border:1px solid var(--divider-color);border-radius:10px;background:var(--card-background-color)}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--divider-color);white-space:nowrap}
+.tbl th{font-weight:500;font-size:13px;color:var(--secondary-text-color)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl code{font-size:15px;letter-spacing:1px}
 @media(max-width:520px){.hist .row{grid-template-columns:1fr auto}.hist .row span:first-child{grid-column:1/-1}.two{grid-template-columns:1fr}}
 `;
 
@@ -87,9 +96,10 @@ const HTML = `
   <button id="once">Einmalcode</button><button id="new" class="primary">Neue Person</button>
 </div>
 <div class="wrap">
-  <div class="views"><button type="button" data-view="person" class="on">Personen</button><button type="button" data-view="action">Aktionen</button></div>
+  <div class="views"><button type="button" data-view="person" class="on">Personen</button><button type="button" data-view="action">Aktionen</button><button type="button" data-view="rejects">Fehlversuche</button></div>
   <div id="err" class="err" hidden></div>
   <div id="list" class="grid"></div>
+  <div id="rej" hidden></div>
   <h2>Verlauf</h2><div id="history" class="hist"></div>
 </div>
 <dialog id="dlg">
@@ -214,9 +224,10 @@ class DoorcodePanel extends HTMLElement {
     const chip = this._r.querySelector("#chip");
     chip.textContent = STATUS[d.status] || d.status;
     chip.className = "chip " + d.status;
+    this._renderRejects(d);
     const kindOf = (c) => c.kind || "person";
-    const n = { person: d.codes.filter((c) => kindOf(c) === "person").length, action: d.codes.filter((c) => kindOf(c) === "action").length };
-    this._r.querySelectorAll(".views button").forEach((b) => { b.textContent = `${b.dataset.view === "person" ? "Personen" : "Aktionen"} (${n[b.dataset.view]})`; });
+    const n = { person: d.codes.filter((c) => kindOf(c) === "person").length, action: d.codes.filter((c) => kindOf(c) === "action").length, rejects: (d.rejected || []).length };
+    this._r.querySelectorAll(".views button").forEach((b) => { b.textContent = `${b.dataset.view === "person" ? "Personen" : b.dataset.view === "action" ? "Aktionen" : "Fehlversuche"} (${n[b.dataset.view]})`; });
     const shown = d.codes.filter((c) => kindOf(c) === this._view);
     this._r.querySelector("#list").innerHTML = shown.length
       ? shown.map((c) => this._card(c)).join("")
@@ -224,7 +235,7 @@ class DoorcodePanel extends HTMLElement {
         ? '<p class="muted">Noch keine Aktionen. Lege mit „Neue Aktion“ z. B. „Alarm scharf“ oder „Alle Lichter aus“ an.</p>'
         : '<p class="muted">Noch keine Personen. Lege mit „Neue Person“ die erste an.</p>');
     this._r.querySelector("#history").innerHTML = d.history.length
-      ? d.history.map((h) => `<div class="row ${esc(h.result)}"><span class="muted">${esc(this._fmt(h.time))}</span><b>${esc(h.name || "–")}</b><span>${esc(h.result === "granted" && h.kind === "action" ? "Aktion ausgelöst" : (RESULT[h.result] || h.result))}${h.method ? " · " + esc(METHOD[h.method] || h.method) : ""}</span></div>`).join("")
+      ? d.history.map((h) => `<div class="row ${esc(h.result)}"><span class="muted">${esc(this._fmt(h.time))}</span><b>${this._who(h)}</b><span>${esc(h.result === "granted" && h.kind === "action" ? "Aktion ausgelöst" : (RESULT[h.result] || h.result))}${h.method ? " · " + esc(METHOD[h.method] || h.method) : ""}</span></div>`).join("")
       : '<p class="muted">Noch keine Zugriffe.</p>';
   }
 
@@ -275,10 +286,39 @@ class DoorcodePanel extends HTMLElement {
     }
   }
 
+  _who(h) {
+    if (h.name) return esc(h.name);
+    if (h.entered) {
+      const hint = h.owner ? ` <span class="muted small">${esc(h.owner)}, ${esc(REASON[h.reason] || h.reason)}</span>` : "";
+      return `<code>${esc(h.entered)}</code>${hint}`;
+    }
+    return "–";
+  }
+
+  _renderRejects(d) {
+    const on = this._view === "rejects";
+    const box = this._r.querySelector("#rej");
+    this._r.querySelector("#list").hidden = on;
+    box.hidden = !on;
+    if (!on) return;
+    const rows = d.rejected || [];
+    const info = d.log_rejected === false ? '<p class="muted">Die Protokollierung falscher Codes ist in den Integrations-Optionen ausgeschaltet.</p>' : "";
+    if (!rows.length) { box.innerHTML = info + '<p class="muted">Noch keine Fehlversuche aufgezeichnet.</p>'; return; }
+    const total = rows.reduce((s, r) => s + r.count, 0);
+    const note = (r) => (r.owner ? `gehört zu „${esc(r.owner)}“ (${esc(REASON[r.reason] || r.reason)})` : "unbekannt");
+    const body = rows.map((r) => `<tr><td><code>${esc(r.value)}</code></td><td>${esc(METHOD[r.method] || r.method)}</td><td>${r.count}</td><td>${esc(this._fmt(r.last))}</td><td>${note(r)}</td></tr>`).join("");
+    box.innerHTML = `${info}<div class="rejhead"><span class="muted">${total} Fehlversuche mit ${rows.length} verschiedenen Codes</span><button id="rejclear" class="danger">Zurücksetzen</button></div><div class="tblwrap"><table class="tbl"><thead><tr><th>Code / Tag</th><th>Art</th><th>Versuche</th><th>Zuletzt</th><th>Hinweis</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    box.querySelector("#rejclear").onclick = async () => {
+      if (!confirm("Alle aufgezeichneten Fehlversuche löschen?")) return;
+      try { await this._call("clear_rejected"); } catch (e) { this._showErr(e.message || String(e)); }
+    };
+  }
+
   _viewUI() {
     this._r.querySelectorAll(".views button").forEach((b) => b.classList.toggle("on", b.dataset.view === this._view));
     this._r.querySelector("#new").textContent = this._view === "action" ? "Neue Aktion" : "Neue Person";
-    this._r.querySelector("#once").style.display = this._view === "action" ? "none" : "";
+    this._r.querySelector("#new").style.display = this._view === "rejects" ? "none" : "";
+    this._r.querySelector("#once").style.display = this._view !== "person" ? "none" : "";
   }
 
   // ---------- dialog ----------

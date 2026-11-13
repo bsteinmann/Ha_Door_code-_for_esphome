@@ -38,6 +38,7 @@ def async_setup(hass: HomeAssistant) -> None:
         ws_cancel_learn,
         ws_notify_targets,
         ws_action_entities,
+        ws_clear_rejected,
     ):
         websocket_api.async_register_command(hass, command)
 
@@ -169,3 +170,14 @@ def ws_action_entities(hass, connection, msg) -> None:
     if manager is None:
         return
     connection.send_result(msg["id"], manager.action_entities())
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/clear_rejected"})
+@callback
+def ws_clear_rejected(hass, connection, msg) -> None:
+    manager = _manager(hass, connection, msg)
+    if manager is None:
+        return
+    manager.clear_rejected()
+    connection.send_result(msg["id"])

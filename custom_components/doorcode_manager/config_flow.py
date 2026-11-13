@@ -19,6 +19,7 @@ from .const import (
     DEFAULT_PULSE,
     DOMAIN,
     OPT_LOCKOUT,
+    OPT_LOG_REJECTED,
     OPT_ACTION_LABEL,
     OPT_MAX_FAILED,
     OPT_NOTIFY_DEFAULT,
@@ -88,6 +89,9 @@ class DoorCodeManagerOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     OPT_TAG_DEVICES, default=o.get(OPT_TAG_DEVICES, [])
                 ): selector.DeviceSelector(selector.DeviceSelectorConfig(multiple=True)),
+                vol.Optional(
+                    OPT_LOG_REJECTED, default=o.get(OPT_LOG_REJECTED, True)
+                ): bool,
                 vol.Optional(
                     OPT_ACTION_LABEL, description={"suggested_value": o.get(OPT_ACTION_LABEL)}
                 ): selector.LabelSelector(),

@@ -1,7 +1,7 @@
 """Constants for Door Code Manager."""
 
 DOMAIN = "doorcode_manager"
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 
 SIGNAL_UPDATE = f"{DOMAIN}_update"
 PANEL_URL = f"/{DOMAIN}/doorcode-panel.js"
@@ -18,6 +18,8 @@ OPT_LOCKOUT = "lockout_duration"
 OPT_TAG_DEVICES = "tag_devices"
 OPT_NOTIFY_DEFAULT = "default_notify_targets"
 OPT_ACTION_LABEL = "action_label"
+OPT_LOG_REJECTED = "log_rejected_codes"
+REJECT_LIMIT = 200
 DEFAULT_PULSE = 3
 DEFAULT_MAX_FAILED = 5
 DEFAULT_LOCKOUT = 60
