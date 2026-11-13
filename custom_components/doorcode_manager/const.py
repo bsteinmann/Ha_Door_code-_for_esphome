@@ -1,7 +1,7 @@
 """Constants for Door Code Manager."""
 
 DOMAIN = "doorcode_manager"
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 
 SIGNAL_UPDATE = f"{DOMAIN}_update"
 PANEL_URL = f"/{DOMAIN}/doorcode-panel.js"

@@ -1,4 +1,4 @@
-# Door Code Manager 2.0
+# Door Code Manager
 
 Türcodes für ESPHome-Keypad + Shelly-Türöffner, verwaltet über ein Seitenmenü-Panel **„Türcodes“** (nur Administratoren).
 
@@ -7,7 +7,7 @@ Türcodes für ESPHome-Keypad + Shelly-Türöffner, verwaltet über ein Seitenme
 2. *Door Code Manager* herunterladen, Home Assistant **neu starten**.
    (Manuell: Ordner `custom_components/doorcode_manager` nach `/config/custom_components/` kopieren.)
 3. Einstellungen → Geräte & Dienste → Integration hinzufügen → *Door Code Manager*:
-   Keypad-Sensor (ESPHome-Text-Sensor), Türöffner (switch/button/lock), optional Notify-Dienst.
+   Keypad-Sensor (z. B. `sensor.<gerät>_pin`), optional Auslöser „Code empfangen“ (Binärsensor), Türöffner (switch/button/lock), optional Notify-Dienst.
 4. Im Seitenmenü **Türcodes** öffnen (ggf. Browser-Cache leeren / Strg+F5).
 5. Alte Keypad-Automationen in `automation.yaml` deaktivieren, sonst öffnet die Tür doppelt.
 
